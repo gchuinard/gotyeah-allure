@@ -50,10 +50,12 @@ if [ -d "$TMP/history" ]; then
   cp -a "$TMP/history/." "$HISTORY"/ 2>/dev/null || true
 fi
 
-# 5. Swap the new report into the served location with minimal downtime.
-rm -rf "$REPORT.old"
-[ -d "$REPORT" ] && mv "$REPORT" "$REPORT.old" || true
-mv "$TMP" "$REPORT"
-rm -rf "$REPORT.old" "$STAGING"
+# 5. Publish IN PLACE, preserving the $REPORT directory inode. A mv-swap would
+#    replace the inode and leave the nginx bind-mount viewing a stale/empty dir
+#    (→ 403). We instead clear the dir contents and copy the new report in.
+mkdir -p "$REPORT"
+find "$REPORT" -mindepth 1 -delete 2>/dev/null || true
+cp -a "$TMP/." "$REPORT/"
+rm -rf "$TMP" "$STAGING"
 
 echo "[generate] unified report ready ($sites site(s)) at $(date -u +%FT%TZ)"
