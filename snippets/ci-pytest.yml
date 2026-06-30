@@ -1,0 +1,27 @@
+# Reference snippet — add Allure collection to a repo that runs pytest in CI.
+# Copy these steps into the job that ALREADY runs the test suite on `main`.
+#
+# Prereqs in the repo:
+#   - add `allure-pytest` to the dev dependencies (uv: dev group / pip: requirements-dev.txt)
+#   - the test command must write results with `--alluredir=allure-results`
+#       uv:   uv run pytest --alluredir=allure-results
+#       pip:  python3 -m pytest --alluredir=allure-results
+#
+# Secrets used (already configured for SSH deploy in most repos):
+#   SSH_HOST, SSH_USER, SSH_KEY   (rename to the repo's existing secret names if different)
+
+      # 1) run the tests so they emit Allure results (keep your existing flags)
+      - name: Run tests (Allure results)
+        run: pytest --alluredir=allure-results
+
+      # 2) push the results to the central store on the Pi (main only, even on failure)
+      - name: Publish Allure results
+        if: ${{ always() && github.ref == 'refs/heads/main' }}
+        uses: gchuinard/gotyeah-allure/actions/push-allure-results@main
+        with:
+          site: REPO_NAME            # e.g. gotyeah-datagit  (= the Allure parentSuite)
+          # suite: api               # monorepos only: set per service (api/core/worker)
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          # ssh-port: ${{ secrets.SSH_PORT }}   # only if the repo deploys on a non-22 port

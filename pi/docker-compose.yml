@@ -1,0 +1,42 @@
+# Central Allure dashboard service, deployed to the Pi under /home/pi/sites/gotyeah-allure.
+# Data (results / history / report) lives in the host volume /home/pi/allure so it
+# survives rebuilds and is the rsync target of every repo's CI.
+services:
+  allure-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile.generator
+    image: gotyeah-allure-generator:latest
+    container_name: allure_generator
+    restart: unless-stopped
+    environment:
+      ALLURE_ROOT: /allure
+      ALLURE_HEARTBEAT: "900"   # rebuild at least every 15 min even without events
+    volumes:
+      - /home/pi/allure:/allure
+
+  allure-web:
+    image: nginx:1.27-alpine
+    container_name: allure_web
+    restart: unless-stopped
+    depends_on:
+      - allure-generator
+    volumes:
+      - /home/pi/allure/report:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    # Exposed on the host; Nginx Proxy Manager proxies to http://<pi-host>:8095.
+    # Alternatively, attach this service to NPM's docker network and proxy to
+    # http://allure_web:80 by container name (see README §6).
+    ports:
+      - "8095:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# To proxy by container name instead of host port, uncomment and set the real
+# NPM network name (docker network ls), then add `networks: [npm]` to allure-web.
+# networks:
+#   npm:
+#     external: true

@@ -1,0 +1,40 @@
+# Reference snippet — add Allure collection to a repo that runs Playwright E2E.
+# These repos (yoga, danse/billetterie) do NOT run their tests in CI today, so
+# this adds a real test job AND the Allure push.
+#
+# Prereqs in the repo:
+#   - add `allure-playwright` to devDependencies
+#   - add the allure-playwright reporter to playwright.config.ts (see playwright-config.md)
+#   - tests must use an ISOLATED disposable DB (yoga: e2e/e2e.db via globalSetup;
+#     billetterie: seeded SQLite via e2e/global-setup) — NEVER the production .env DB.
+#
+# Secrets used: SSH_HOST, SSH_USER, SSH_KEY
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          # cache: npm   # or pnpm for danse/billetterie
+
+      - name: Install deps
+        run: npm ci            # billetterie: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium   # billetterie: pnpm exec playwright install --with-deps chromium
+
+      # globalSetup builds/seeds the isolated DB and starts the app itself.
+      - name: Run E2E (Allure results)
+        run: npm run test:e2e   # billetterie: pnpm e2e
+
+      - name: Publish Allure results
+        if: ${{ always() && github.ref == 'refs/heads/main' }}
+        uses: gchuinard/gotyeah-allure/actions/push-allure-results@main
+        with:
+          site: gotyeah-yoga    # or gotyeah-danse
+          # suite: billetterie  # danse only
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}

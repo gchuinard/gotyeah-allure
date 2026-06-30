@@ -1,0 +1,96 @@
+name: Push Allure results
+description: >-
+  Inject the per-site Allure label into the result files, then rsync the
+  allure-results directory to the central Allure store on the Pi. Used by every
+  GotYeah repo that produces Allure results (Playwright or pytest).
+
+inputs:
+  site:
+    description: Canonical site key (= repo name). Becomes the Allure `parentSuite` label, i.e. the top-level grouping in the unified report.
+    required: true
+  suite:
+    description: Optional sub-suite (e.g. a monorepo service name like `api`/`worker`). Becomes the Allure `suite` label.
+    required: false
+    default: ""
+  results-dir:
+    description: Path to the allure-results directory produced by the test run.
+    required: false
+    default: allure-results
+  ssh-host:
+    description: Pi SSH host.
+    required: true
+  ssh-user:
+    description: Pi SSH user.
+    required: true
+  ssh-key:
+    description: Private SSH key (secret) authorized on the Pi.
+    required: true
+  ssh-port:
+    description: Pi SSH port.
+    required: false
+    default: "22"
+  remote-base:
+    description: Base directory of the central results store on the Pi.
+    required: false
+    default: /home/pi/allure/results
+
+runs:
+  using: composite
+  steps:
+    - name: Inject site labels and push results to the Pi
+      shell: bash
+      env:
+        ALLURE_SITE: ${{ inputs.site }}
+        ALLURE_SUITE: ${{ inputs.suite }}
+        RESULTS_DIR: ${{ inputs.results-dir }}
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        SSH_KEY: ${{ inputs.ssh-key }}
+        SSH_PORT: ${{ inputs.ssh-port }}
+        REMOTE_BASE: ${{ inputs.remote-base }}
+      run: |
+        set -euo pipefail
+
+        if [ ! -d "$RESULTS_DIR" ] || [ -z "$(ls -A "$RESULTS_DIR" 2>/dev/null || true)" ]; then
+          echo "::warning::No Allure results in '$RESULTS_DIR' — nothing to push."
+          exit 0
+        fi
+
+        # --- 1. Inject the per-site labels into every result file -----------------
+        # allure-playwright has no global label option and allure-pytest derives
+        # parentSuite from the module path; we overwrite it uniformly here so the
+        # unified report groups by site. All result files are UUID-named JSON.
+        SHA7="$(printf '%s' "${GITHUB_SHA:-}" | cut -c1-7)"
+        echo "Injecting parentSuite=$ALLURE_SITE${ALLURE_SUITE:+, suite=$ALLURE_SUITE}, tag=$SHA7 …"
+        shopt -s nullglob
+        for f in "$RESULTS_DIR"/*-result.json; do
+          tmp="$f.tmp"
+          jq --arg ps "$ALLURE_SITE" --arg su "$ALLURE_SUITE" --arg sha "$SHA7" '
+            .labels = (((.labels // [])
+              | map(select(.name != "parentSuite"))
+              | (if $su != "" then map(select(.name != "suite")) else . end))
+              + [{"name":"parentSuite","value":$ps}]
+              + (if $su != "" then [{"name":"suite","value":$su}] else [] end)
+              + (if $sha != "" then [{"name":"tag","value":$sha}] else [] end))
+          ' "$f" > "$tmp" && mv "$tmp" "$f"
+        done
+
+        # --- 2. Push the results to the central store on the Pi -------------------
+        mkdir -p ~/.ssh
+        printf '%s\n' "$SSH_KEY" > ~/.ssh/id_allure
+        chmod 600 ~/.ssh/id_allure
+        ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+        SSH_CMD="ssh -i ~/.ssh/id_allure -p $SSH_PORT -o StrictHostKeyChecking=accept-new"
+
+        # Per-service monorepo jobs must not clobber each other (rsync --delete).
+        # Use a distinct storage subdir when a suite is set; the report still
+        # groups everything under parentSuite=$ALLURE_SITE via the injected label.
+        REMOTE_SUBDIR="$ALLURE_SITE"
+        [ -n "$ALLURE_SUITE" ] && REMOTE_SUBDIR="${ALLURE_SITE}__${ALLURE_SUITE}"
+        $SSH_CMD "$SSH_USER@$SSH_HOST" "mkdir -p '$REMOTE_BASE/$REMOTE_SUBDIR'"
+        echo "Rsyncing $RESULTS_DIR/ → $SSH_USER@$SSH_HOST:$REMOTE_BASE/$REMOTE_SUBDIR/"
+        rsync -az --delete -e "$SSH_CMD" "$RESULTS_DIR"/ "$SSH_USER@$SSH_HOST:$REMOTE_BASE/$REMOTE_SUBDIR/"
+
+        # The generator container on the Pi watches $REMOTE_BASE and regenerates
+        # the unified report automatically — no remote trigger needed here.
+        echo "Pushed results for site '$ALLURE_SITE'."

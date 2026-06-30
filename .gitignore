@@ -1,0 +1,6 @@
+# Nothing runtime lives in the repo; the data store lives on the Pi at /home/pi/allure.
+.DS_Store
+*.log
+allure-results/
+report/
+.staging/
