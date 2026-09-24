@@ -46,9 +46,14 @@ Données runtime sur le Pi (hors repo) : `/home/pi/allure/{results,history,repor
 
 ## 3. Bootstrap (ordre important)
 
-1. **Créer + pousser ce repo** sur GitHub : `gchuinard/gotyeah-allure` (branche `main`). L'action est référencée par les autres repos via `gchuinard/gotyeah-allure/actions/push-allure-results@<SHA complet>` (`@2610fcd0d507e8bb31c1334c76c65745607740f8` depuis le 24/09/2026, premier commit où l'action vérifie la clé d'hôte du Pi au lieu d'accepter la première présentée). Elle l'était d'abord par `@main`, ce qui faisait exécuter tout nouveau commit de ce dépôt avec la clé SSH de chaque CI : toute modification de l'action impose donc de refiger ces références sur le nouveau SHA.
+1. **Créer + pousser ce repo** sur GitHub : `gchuinard/gotyeah-allure` (branche `main`). L'action est référencée par les autres repos via `gchuinard/gotyeah-allure/actions/push-allure-results@<SHA complet>` (`8df4d1f7f8dbc77ccc585c58b00b8cb7733c20fc` depuis le 24/09/2026 au soir : l'action reçoit les clés d'hôte du Pi par l'input obligatoire `ssh-known-hosts` et échoue s'il est vide). Elle l'était d'abord par `@main`, ce qui faisait exécuter tout nouveau commit de ce dépôt avec la clé SSH de chaque CI : toute modification de l'action impose donc de refiger ces références sur le nouveau SHA. Cette ligne donnait ensuite le commit `2610fcd0d507e8bb31c1334c76c65745607740f8` (même jour), premier où l'action vérifiait la clé d'hôte du Pi au lieu d'accepter la première présentée : il le faisait avec les clés d'hôte écrites en clair dans `action.yml`, ce qui, dans un dépôt public, permet de retrouver l'adresse du Pi dans les bases de scan (Censys, Shodan). Elles viennent désormais d'un secret (étape 3), mais restent lisibles dans l'historique git de ce commit.
 2. **Autoriser l'accès à l'action depuis les autres repos** : repo `gotyeah-allure` → *Settings → Actions → General → Access* → **« Accessible from repositories owned by gchuinard »**. (Sinon les CI échouent avec « action not found » sur un repo privé.)
 3. **Secrets** : chaque repo instrumenté doit avoir `SSH_HOST`, `SSH_USER`, `SSH_KEY` (et `SSH_PORT` si ≠ 22). La plupart les ont déjà pour leur déploiement — vérifier les **noms** (certains repos utilisent `DEPLOY_HOST/USER/KEY` : adapter le `with:` de l'action).
+   Depuis le 24/09/2026, il faut aussi **`SSH_KNOWN_HOSTS`** dans chaque dépôt appelant (et dans celui-ci, que `deploy.yml` utilise) : les clés d'hôte publiques du Pi, une par ligne au format known_hosts, sous l'alias `pi-gotyeah`, passées à l'action par `ssh-known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}`. L'action refuse de pousser si elles manquent, et la connexion échoue si le Pi présente une autre clé. Jamais en clair dans un workflow ni dans la doc d'un dépôt public. Pour produire la valeur, sur le Pi (elle se lit dans les fichiers de l'hôte, sans passer par le réseau) :
+   ```bash
+   for f in /etc/ssh/ssh_host_*_key.pub; do printf 'pi-gotyeah %s\n' "$(cut -d' ' -f1,2 "$f")"; done
+   ```
+   puis la coller dans *Settings → Secrets and variables → Actions* du dépôt appelant, ou `gh secret set SSH_KNOWN_HOSTS -R gchuinard/<dépôt>` qui la lit sur l'entrée standard.
 4. **Déployer le service** : pousser `main` (le workflow `deploy.yml` rsync `pi/` vers `/home/pi/sites/gotyeah-allure` et lance `docker compose up -d --build`), ou manuellement sur le Pi :
    ```bash
    mkdir -p /home/pi/allure/{results,history,report}
@@ -67,7 +72,7 @@ Voir `snippets/`. En résumé :
 | pytest (pip) | `allure-pytest` (requirements-dev) | `python3 -m pytest --alluredir=allure-results` | nom du repo |
 | Playwright | `allure-playwright` (devDep) + reporter dans `playwright.config.ts` | `npm run test:e2e` / `pnpm e2e` | nom du repo |
 
-Puis l'étape `Publish Allure results` (action `push-allure-results`), **gardée sur `main`** et en `if: always()` (on veut aussi voir les échecs). Monorepos : un `suite:` par service (`api`/`core`/`worker`).
+Puis l'étape `Publish Allure results` (action `push-allure-results`, figée sur le SHA complet de l'étape 1 du §3, avec `ssh-known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}`), **gardée sur `main`** et en `if: always()` (on veut aussi voir les échecs). Monorepos : un `suite:` par service (`api`/`core`/`worker`).
 
 **Clé de site = nom du repo GitHub** : `gotyeah-yoga`, `gotyeah-danse`, `gotyeah-sonar` (⚠️ le dossier local `gotyeah_sonar` → repo `gotyeah-sonar`), `gotyeah-QAIA`, `gotyeah-datagit`, `gotyeah-meteo`, `gotyeah-starter`, `gotyeah-stack`.
 
@@ -99,3 +104,4 @@ Hors périmètre (décidé) : Vitest (danse/billetterie 38, stack/web 7) ; repos
 - Le rapport peut exposer des détails techniques → **toujours derrière Cloudflare Access**.
 - Les tests E2E utilisent des **DB jetables isolées** (jamais la prod). Vérifié pour yoga (`e2e/e2e.db`) et billetterie (SQLite seedée par `global-setup`).
 - Aucun secret n'est stocké dans les résultats ; l'action n'écrit que des labels + le SHA court.
+- **Clés d'hôte du Pi** : ni les clés ni leurs empreintes ne figurent en clair dans ce dépôt ou dans un autre dépôt public, car elles permettent de retrouver l'adresse du Pi dans les bases de scan. L'action et `deploy.yml` les lisent dans le secret `SSH_KNOWN_HOSTS` et exigent qu'elles correspondent (`StrictHostKeyChecking=yes`, alias `pi-gotyeah`). Le commit `2610fcd` les avait écrites dans `action.yml` : elles restent dans l'historique git public.

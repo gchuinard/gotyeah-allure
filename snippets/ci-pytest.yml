@@ -9,6 +9,8 @@
 #
 # Secrets used (already configured for SSH deploy in most repos):
 #   SSH_HOST, SSH_USER, SSH_KEY   (rename to the repo's existing secret names if different)
+#   SSH_KNOWN_HOSTS               (depuis le 24/09/2026 : clés d'hôte du Pi, une par ligne au
+#                                  format known_hosts, sous l'alias pi-gotyeah, cf. README §3)
 
       # 1) run the tests so they emit Allure results (keep your existing flags)
       - name: Run tests (Allure results)
@@ -17,13 +19,15 @@
       # 2) push the results to the central store on the Pi (main only, even on failure)
       - name: Publish Allure results
         if: ${{ always() && github.ref == 'refs/heads/main' }}
-        # Figé le 24/09/2026 sur le HEAD de main (aucun tag) : l'action reçoit la clé SSH,
-        # et @main lui ferait exécuter tout nouveau commit de gotyeah-allure.
-        uses: gchuinard/gotyeah-allure/actions/push-allure-results@2610fcd0d507e8bb31c1334c76c65745607740f8
+        # Figé sur un SHA complet (aucun tag) : l'action reçoit la clé SSH, et @main lui ferait
+        # exécuter tout nouveau commit de gotyeah-allure. Ce SHA (24/09/2026 au soir) exige
+        # ssh-known-hosts. Le précédent, 2610fcd, portait les clés d'hôte du Pi en clair.
+        uses: gchuinard/gotyeah-allure/actions/push-allure-results@8df4d1f7f8dbc77ccc585c58b00b8cb7733c20fc
         with:
           site: REPO_NAME            # e.g. gotyeah-datagit  (= the Allure parentSuite)
           # suite: api               # monorepos only: set per service (api/core/worker)
           ssh-host: ${{ secrets.SSH_HOST }}
           ssh-user: ${{ secrets.SSH_USER }}
           ssh-key: ${{ secrets.SSH_KEY }}
+          ssh-known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}   # clés d'hôte du Pi : secret obligatoire, jamais en clair
           # ssh-port: ${{ secrets.SSH_PORT }}   # only if the repo deploys on a non-22 port

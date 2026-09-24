@@ -8,7 +8,8 @@
 #   - tests must use an ISOLATED disposable DB (yoga: e2e/e2e.db via globalSetup;
 #     billetterie: seeded SQLite via e2e/global-setup) — NEVER the production .env DB.
 #
-# Secrets used: SSH_HOST, SSH_USER, SSH_KEY
+# Secrets used: SSH_HOST, SSH_USER, SSH_KEY, SSH_KNOWN_HOSTS (depuis le 24/09/2026 :
+# clés d'hôte du Pi, une par ligne au format known_hosts, sous l'alias pi-gotyeah, cf. README §3)
 
   e2e:
     runs-on: ubuntu-latest
@@ -31,12 +32,14 @@
 
       - name: Publish Allure results
         if: ${{ always() && github.ref == 'refs/heads/main' }}
-        # Figé le 24/09/2026 sur le HEAD de main (aucun tag) : l'action reçoit la clé SSH,
-        # et @main lui ferait exécuter tout nouveau commit de gotyeah-allure.
-        uses: gchuinard/gotyeah-allure/actions/push-allure-results@2610fcd0d507e8bb31c1334c76c65745607740f8
+        # Figé sur un SHA complet (aucun tag) : l'action reçoit la clé SSH, et @main lui ferait
+        # exécuter tout nouveau commit de gotyeah-allure. Ce SHA (24/09/2026 au soir) exige
+        # ssh-known-hosts. Le précédent, 2610fcd, portait les clés d'hôte du Pi en clair.
+        uses: gchuinard/gotyeah-allure/actions/push-allure-results@8df4d1f7f8dbc77ccc585c58b00b8cb7733c20fc
         with:
           site: gotyeah-yoga    # or gotyeah-danse
           # suite: billetterie  # danse only
           ssh-host: ${{ secrets.SSH_HOST }}
           ssh-user: ${{ secrets.SSH_USER }}
           ssh-key: ${{ secrets.SSH_KEY }}
+          ssh-known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}   # clés d'hôte du Pi : secret obligatoire, jamais en clair
