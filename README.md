@@ -46,7 +46,7 @@ Données runtime sur le Pi (hors repo) : `/home/pi/allure/{results,history,repor
 
 ## 3. Bootstrap (ordre important)
 
-1. **Créer + pousser ce repo** sur GitHub : `gchuinard/gotyeah-allure` (branche `main`). L'action est référencée par les autres repos via `gchuinard/gotyeah-allure/actions/push-allure-results@main`.
+1. **Créer + pousser ce repo** sur GitHub : `gchuinard/gotyeah-allure` (branche `main`). L'action est référencée par les autres repos via `gchuinard/gotyeah-allure/actions/push-allure-results@<SHA complet>` (`@2610fcd0d507e8bb31c1334c76c65745607740f8` depuis le 24/09/2026, premier commit où l'action vérifie la clé d'hôte du Pi au lieu d'accepter la première présentée). Elle l'était d'abord par `@main`, ce qui faisait exécuter tout nouveau commit de ce dépôt avec la clé SSH de chaque CI : toute modification de l'action impose donc de refiger ces références sur le nouveau SHA.
 2. **Autoriser l'accès à l'action depuis les autres repos** : repo `gotyeah-allure` → *Settings → Actions → General → Access* → **« Accessible from repositories owned by gchuinard »**. (Sinon les CI échouent avec « action not found » sur un repo privé.)
 3. **Secrets** : chaque repo instrumenté doit avoir `SSH_HOST`, `SSH_USER`, `SSH_KEY` (et `SSH_PORT` si ≠ 22). La plupart les ont déjà pour leur déploiement — vérifier les **noms** (certains repos utilisent `DEPLOY_HOST/USER/KEY` : adapter le `with:` de l'action).
 4. **Déployer le service** : pousser `main` (le workflow `deploy.yml` rsync `pi/` vers `/home/pi/sites/gotyeah-allure` et lance `docker compose up -d --build`), ou manuellement sur le Pi :
@@ -54,7 +54,7 @@ Données runtime sur le Pi (hors repo) : `/home/pi/allure/{results,history,repor
    mkdir -p /home/pi/allure/{results,history,report}
    cd /home/pi/sites/gotyeah-allure && docker compose up -d --build
    ```
-5. **NPM** : nouveau Proxy Host (ex. `allure.<domaine>`) → `http://<pi-host>:8095` (ou `http://allure_web:80` si tu attaches le conteneur au réseau NPM, cf. §6). Certificat via Cloudflare. CSP en base NPM comme les autres sites.
+5. **NPM** : nouveau Proxy Host (ex. `allure.<domaine>`) → `http://allure_web:80`, le conteneur étant attaché au réseau NPM (cf. §6). Certificat via Cloudflare. CSP en base NPM comme les autres sites. Cette étape proposait d'abord `http://<pi-host>:8095` : ce n'est plus possible depuis le 24/09/2026, le port 8095 n'est publié que sur 127.0.0.1 du Pi (sur toutes les interfaces, il exposait le rapport au réseau local sans passer par NPM).
 6. **Cloudflare Access** : application self-hosted sur `allure.<domaine>`, méthode **One-time PIN**, policy *Allow* limitée à ton e-mail. → code à 6 chiffres par mail, aucun mot de passe.
 
 ## 4. Brancher un repo (contrat)
@@ -92,7 +92,7 @@ Hors périmètre (décidé) : Vitest (danse/billetterie 38, stack/web 7) ; repos
 - **Logs** : `docker logs -f allure_generator`
 - **Réinitialiser les tendances** : vider `/home/pi/allure/history/` puis régénérer.
 - **Rétention** : Allure garde ~20 builds d'historique pour les courbes ; surveiller la taille des attachements Playwright (`du -sh /home/pi/allure`). Garder `trace`/`video` sur échec uniquement.
-- **Proxy par nom de conteneur (alternative au port 8095)** : décommenter le bloc `networks: npm (external)` dans `docker-compose.yml`, mettre le vrai nom (`docker network ls`), ajouter `networks: [npm]` à `allure-web`, et pointer NPM sur `http://allure_web:80`.
+- **Proxy par nom de conteneur (seule voie depuis le 24/09/2026 : le port 8095 n'écoute plus que sur 127.0.0.1)** : `allure-web` est attaché au réseau `nginx-proxy-manager_default` (bloc `networks: npm`, external, de `docker-compose.yml`) et NPM pointe sur `http://allure_web:80`. Cette ligne demandait d'abord de décommenter ce bloc et d'y mettre le vrai nom du réseau : c'est fait depuis le 30/06/2026 (commit d128751).
 
 ## 7. Sécurité / données
 

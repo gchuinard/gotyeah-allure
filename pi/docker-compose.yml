@@ -40,9 +40,11 @@ services:
       - ./404.html:/usr/share/nginx/errors/404.html:ro
       - ./404.css:/usr/share/nginx/errors/404.css:ro
     # NPM proxies to http://allure_web:80 via the shared nginx-proxy-manager_default
-    # network (declared below). 8095 stays published for direct host debugging.
+    # network (declared below). 8095 n'est publié que sur 127.0.0.1, pour le débogage
+    # depuis le Pi lui-même : NPM n'en a pas besoin, et sur toutes les interfaces il
+    # exposait le rapport au réseau local sans passer par le proxy.
     ports:
-      - "8095:80"
+      - "127.0.0.1:8095:80"
     networks:
       - default
       - npm
