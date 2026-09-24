@@ -3,6 +3,14 @@
 # survives rebuilds and is the rsync target of every repo's CI.
 services:
   allure-generator:
+    # Limite posee le 28/08/2026, sur trois fois la consommation observee.
+    # Elle etait deja appliquee a chaud par docker update ; elle est ecrite ici
+    # pour survivre a une recreation du conteneur.
+    # 512 Mo et non 128. Ce conteneur a deja subi un depassement memoire, releve
+    # le 31 aout 2026 dans son etat docker. Il assemble un rapport Allure a
+    # partir de plusieurs milliers de fichiers de resultats, sur une machine
+    # virtuelle Java : 128 Mo etait intenable des que le volume montait.
+    mem_limit: 512m
     build:
       context: .
       dockerfile: Dockerfile.generator
@@ -16,6 +24,10 @@ services:
       - /home/pi/allure:/allure
 
   allure-web:
+    # Limite posee le 28/08/2026, sur trois fois la consommation observee.
+    # Elle etait deja appliquee a chaud par docker update ; elle est ecrite ici
+    # pour survivre a une recreation du conteneur.
+    mem_limit: 128m
     image: nginx:1.27-alpine
     container_name: allure_web
     restart: unless-stopped
