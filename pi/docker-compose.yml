@@ -47,7 +47,8 @@ services:
       - default
       - npm
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
+      # 127.0.0.1 et non localhost : localhost résout d'abord vers ::1, où nginx n'écoute pas.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
