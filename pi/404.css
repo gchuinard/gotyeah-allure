@@ -1,0 +1,168 @@
+/* Stylesheet of the custom 404 page (404.html), served by allure_web from
+   /usr/share/nginx/errors, outside the report dir. Kept as a separate file so
+   the page needs no inline style, whatever CSP the proxy sets.
+   Look: the Allure 2 report itself (dark side nav, white content, status colors). */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    font-size: 14px;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    color: #333;
+    background: #fff;
+}
+
+a:focus-visible {
+    outline: 2px solid #343434;
+    outline-offset: 2px;
+}
+
+.layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* Side nav, as in the report */
+.side {
+    flex: 0 0 200px;
+    padding: 20px 0;
+    color: #fff;
+    background: #343434;
+}
+
+.side a:focus-visible {
+    outline-color: #fff;
+}
+
+.side__brand {
+    display: block;
+    padding: 0 20px 20px;
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #fff;
+    text-decoration: none;
+}
+
+.side__menu {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.side__link {
+    display: block;
+    padding: 10px 20px;
+    color: #bbb;
+    text-decoration: none;
+}
+
+.side__link:hover {
+    color: #fff;
+    background: #404040;
+}
+
+/* Content */
+.content {
+    flex: 1 1 auto;
+    max-width: 640px;
+    padding: 48px 40px;
+}
+
+.status {
+    display: inline-block;
+    margin: 0 0 16px;
+    padding: 2px 10px;
+    border-left: 4px solid #fd5a3e;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #666;
+    background: #f5f5f5;
+}
+
+.status__code {
+    font-weight: bold;
+    color: #333;
+}
+
+.title {
+    margin: 0 0 12px;
+    font-size: 2rem;
+    font-weight: normal;
+}
+
+.text {
+    margin: 0 0 28px;
+    color: #555;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0;
+}
+
+.button {
+    display: inline-block;
+    padding: 8px 16px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    color: #333;
+    background: #fff;
+    text-decoration: none;
+}
+
+.button:hover {
+    border-color: #999;
+}
+
+.button--primary {
+    border-color: #343434;
+    color: #fff;
+    background: #343434;
+}
+
+.button--primary:hover {
+    border-color: #1f1f1f;
+    background: #1f1f1f;
+}
+
+/* Narrow screens: the side nav becomes a top bar */
+@media (max-width: 640px) {
+    .layout {
+        flex-direction: column;
+    }
+
+    .side {
+        flex: 0 0 auto;
+        padding: 12px 0 4px;
+    }
+
+    .side__brand {
+        padding: 0 16px 8px;
+    }
+
+    .side__menu {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .side__link {
+        padding: 8px 16px;
+    }
+
+    .content {
+        padding: 32px 16px;
+    }
+}

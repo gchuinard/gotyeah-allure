@@ -24,6 +24,9 @@ services:
     volumes:
       - /home/pi/allure/report:/usr/share/nginx/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Custom 404 page, mounted OUTSIDE the report dir (regenerated as a whole).
+      - ./404.html:/usr/share/nginx/errors/404.html:ro
+      - ./404.css:/usr/share/nginx/errors/404.css:ro
     # NPM proxies to http://allure_web:80 via the shared nginx-proxy-manager_default
     # network (declared below). 8095 stays published for direct host debugging.
     ports:
