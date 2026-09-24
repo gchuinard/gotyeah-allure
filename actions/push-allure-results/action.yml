@@ -79,8 +79,15 @@ runs:
         mkdir -p ~/.ssh
         printf '%s\n' "$SSH_KEY" > ~/.ssh/id_allure
         chmod 600 ~/.ssh/id_allure
-        ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-        SSH_CMD="ssh -i ~/.ssh/id_allure -p $SSH_PORT -o StrictHostKeyChecking=accept-new"
+        # The Pi's host keys, under a fixed alias: the connection fails if the
+        # host presents any other key (no more trust on first use). Update these
+        # lines if the Pi's host keys ever change.
+        cat > "$HOME/.ssh/known_hosts_pi" <<'KNOWN_HOSTS'
+        pi-gotyeah ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBD/x9/dt73c0S9jGhH91twjJRQcrdGCAAG2mXm9A2Ng3CxC2UrzrBI4nU6SRGdp+QpLu9847vD+vBOZI34qxHl4=
+        pi-gotyeah ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPIqwA/na7lnWapPBXJSXm7ax1HMGw+zTuAkVeyiR28B
+        pi-gotyeah ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDc12bCFkVUZucBIvfF2SVYFSBM1zmgNjKT5Rc0zX05uKwXgZ6KbeNR/Q6b477VcEg1a60unEs1QMr9GrpVzfYmd00Ung4zqMBu5C8+pqYkw5zU7jXpYTMsVSE2cFQKuPz6jYGwMcDFaf/UcwGr56Rtcvvj3ky0mA6t2w2MOJ9hKUc3IQjb5QPOVst5qL5TRlwlEH10fZfLr/9kI1I78tJ3bGHqaTwVwvCzoBUYLWS+Nut9EmS9KPydcVQEUhuD9GlkUh5KWyOGXzek2xxt7rvqjjeH5s+jyT2/NSK+nCZ+oeWUKYKAykH5q93EstH8Yjli70loVa9CzryGBJiJuFSe4/Q7VEBg7iu01DvSgPDwmbrU0FemDTi8Uxw9c+MDan8rqf4WEDie5iCNdpmoKjKCTmodU1td/TtJwekJkKKayqAZ2rwMgMv6D1/2TO7jJGZRcAhrvYjejJMB/L3K33u/JU5rzYRuayk1zU7W5178KZ8Al2tNjvgktMqgfunHrXc=
+        KNOWN_HOSTS
+        SSH_CMD="ssh -i $HOME/.ssh/id_allure -p $SSH_PORT -o HostKeyAlias=pi-gotyeah -o UserKnownHostsFile=$HOME/.ssh/known_hosts_pi -o StrictHostKeyChecking=yes"
 
         # Per-service monorepo jobs must not clobber each other (rsync --delete).
         # Use a distinct storage subdir when a suite is set; the report still
