@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "pi/**"
+      - "deploy/**"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
@@ -12,43 +13,33 @@ concurrency:
   group: deploy-allure
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      SSH_HOST: ${{ secrets.SSH_HOST }}
-      SSH_USER: ${{ secrets.SSH_USER }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup SSH
+      # Depuis le 25/09/2026, la clé DEPLOY_SSH_KEY est dédiée à ce dépôt. Sur le Pi,
+      # authorized_keys la force sur « /usr/local/sbin/gotyeah-deploy allure » : le Pi met à
+      # jour sa copie de ce dépôt (public), puis lance deploy/pi-deploy.sh, qui recopie pi/
+      # dans le dossier du service et reconstruit. La commande envoyée ici est ignorée.
+      # Les clés d'hôte du Pi viennent du secret SSH_KNOWN_HOSTS (alias pi-gotyeah) : en clair
+      # dans ce dépôt public, elles permettraient de retrouver l'adresse du Pi.
+      - name: Déployer sur le Pi
         env:
-          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
+          for v in SSH_HOST SSH_USER DEPLOY_SSH_KEY SSH_KNOWN_HOSTS; do
+            if [ -z "${!v}" ]; then echo "::error::Secret $v absent."; exit 1; fi
+          done
           mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          # Clés d'hôte du Pi, sous l'alias pi-gotyeah, lues dans un secret depuis le 24/09/2026 :
-          # en clair dans ce dépôt public, elles permettraient de retrouver l'adresse du Pi.
-          # Avant, ce workflow relevait la clé que l'hôte présentait au moment du déploiement
-          # et l'acceptait sans rien vérifier.
-          if [ -z "$SSH_KNOWN_HOSTS" ]; then echo "::error::Secret SSH_KNOWN_HOSTS absent : sans lui, le déploiement accepterait n'importe quel hôte."; exit 1; fi
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts_pi
-
-      - name: Rsync service files to the Pi
-        run: |
-          rsync -az --delete \
-            -e "ssh -i ~/.ssh/id_ed25519 -o HostKeyAlias=pi-gotyeah -o UserKnownHostsFile=~/.ssh/known_hosts_pi -o StrictHostKeyChecking=yes" \
-            pi/ "$SSH_USER@$SSH_HOST:/home/pi/sites/gotyeah-allure/"
-
-      - name: Ensure data dirs and (re)build the service
-        run: |
-          ssh -i ~/.ssh/id_ed25519 -o HostKeyAlias=pi-gotyeah -o UserKnownHostsFile=~/.ssh/known_hosts_pi -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" '
-              set -e
-              mkdir -p /home/pi/allure/results /home/pi/allure/history /home/pi/allure/report
-              cd /home/pi/sites/gotyeah-allure
-              docker compose up -d --build
-              docker image prune -f
-            '
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o HostKeyAlias=pi-gotyeah \
+            -o UserKnownHostsFile=~/.ssh/known_hosts_pi -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" deploy
